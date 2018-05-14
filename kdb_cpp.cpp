@@ -7,6 +7,31 @@ namespace kdb {
     class Connector;
     class Result;
     std::ostream &operator<<(std::ostream &os, const Result &result);
+
+    enum class Type {
+        MixedList = 0,
+        Boolean = 1,
+        GUID = 2,
+        Byte = 4,
+        Short = 5,
+        Int = 6,
+        Long = 7,
+        Real = 8,
+        Float = 9,
+        Char = 10,
+        Symbol = 11,
+        Timestamp = 12,
+        Month = 13,
+        Date = 14,
+        Datetime = 15,
+        Timespan = 16,
+        Minute = 17,
+        Second = 18,
+        Time = 19,
+        Table = 98,
+        Dict = 99,
+        Error = -128
+    };
 }
 
 
@@ -14,8 +39,8 @@ namespace kdb {
 class kdb::Connector {
 public:
     ~Connector();
-    int connect(const char* host, int port, const char* usr_pwd = nullptr, int timeout=1000);
-    int disconnect();
+    bool connect(const char* host, int port, const char* usr_pwd = nullptr, int timeout=1000);
+    void disconnect();
     Result sync(const char* msg);
     void async(const char* msg);
     Result receive(int timeout=1000);
@@ -34,7 +59,7 @@ public:
     Result(K res);
     Result(const Result &r);
     ~Result();
-    int type();
+    Type type();
     Result & operator = (const Result &r);
     friend std::ostream &operator<<(std::ostream &os, const Result &result);
 
@@ -50,7 +75,7 @@ kdb::Connector::~Connector() {
     disconnect();
 }
 
-int kdb::Connector::connect(const char* host, int port, const char* usr_pwd, int timeout) {
+bool kdb::Connector::connect(const char* host, int port, const char* usr_pwd, int timeout) {
     host_ = host == nullptr ? "" : host;
     usr_pwd_ = usr_pwd == nullptr ? "" : usr_pwd;
     port_ = port;
@@ -77,7 +102,7 @@ int kdb::Connector::connect(const char* host, int port, const char* usr_pwd, int
     return true;
 }
 
-int kdb::Connector::disconnect() {
+void kdb::Connector::disconnect() {
     if (hdl_ > 0) {
         kclose(hdl_);
         hdl_ = 0;
@@ -189,11 +214,11 @@ kdb::Result & kdb::Result::operator = (const kdb::Result &r) {
     return *this;
 }
 
-int kdb::Result::type() {
+kdb::Type kdb::Result::type() {
     if (res_) {
-        return res_->t;
+        return static_cast<kdb::Type>(res_->t);
     } else {
-        return -128;
+        return kdb::Type::Error;
     }
 }
 
@@ -230,7 +255,7 @@ std::ostream &operator<<(std::ostream &os, K const &res) {
             os << dj(res->i); break;
         case(0) :
             for (idx = 0; idx < res->n; idx++) {
-                os << kK(res)[idx];
+                os << kK(res)[idx]  << ' ';
             }
             break;
         case(1) :
@@ -240,60 +265,61 @@ std::ostream &operator<<(std::ostream &os, K const &res) {
                 } else {
                     os << "false";
                 }
+                os << ' ';
             }
             break;
         case(4) :
             for (idx = 0; idx < res->n; idx++) {
-                os << kG(res)[idx];
+                os << kG(res)[idx] << ' ';
             }
             break;
         case(5) :
             for (idx = 0; idx < res->n; idx++) {
-                os << kH(res)[idx];
+                os << kH(res)[idx] << ' ';
             }
             break;
         case(6) : case(13) : case(17) : case(18) :
             for (idx = 0; idx < res->n; idx++) {
-                os << kI(res)[idx];
+                os << kI(res)[idx] << ' ';
             }
             break;
         case(7) : case(12) : case(16) :
             for (idx = 0; idx < res->n; idx++) {
-                os << kJ(res)[idx];
+                os << kJ(res)[idx] << ' ';
             }
             break;
         case(8) :
             for (idx = 0; idx < res->n; idx++) {
-                os << kE(res)[idx];
+                os << kE(res)[idx] << ' ';
             }
             break;
         case(9) : case(15) :
             for (idx = 0; idx < res->n; idx++) {
-                os << kF(res)[idx];
+                os << kF(res)[idx] << ' ';
             }
             break;
         case(10) :
             for (idx = 0; idx < res->n; idx++) {
-                os << kC(res)[idx];
+                os << kC(res)[idx] << ' ';
             }
             break;
         case(11) :
             for (idx = 0; idx < res->n; idx++) {
-                os << kS(res)[idx];
+                os << kS(res)[idx] << ' ';
             }
             break;
         case(19) :
             for (idx = 0; idx < res->n; idx++) {
-                os << kI(res)[idx];
+                os << kI(res)[idx] << ' ';
             }
             break;
         case(14) :
             for (idx = 0; idx < res->n; idx++) {
-                os << dj(kI(res)[idx]);
+                os << dj(kI(res)[idx]) << ' ';
             }
             break;
         case(98) : // Non-keyed Table
-            
+            os << kK(res->k)[0] << kK(res->k)[1];
             break;
         case(99) : // Dictionary or keyed table
             os << kK(res)[0] << kK(res)[1];
@@ -312,86 +338,89 @@ std::ostream &kdb::operator<<(std::ostream &os, kdb::Result const &result) {
 ////////////////////////////////////////////
 
 inline void print_kdb(kdb::Result r) {
-    std::cout << "type: " << r.type() << " value: " << r << '\n';
+    std::cout << "type: " << static_cast<std::underlying_type<kdb::Type>::type>(r.type()) << " value: " << r << '\n';
 }
 
 int main() {
-    kdb::Connector k;
-    k.connect("127.0.0.1", 5000);
-    kdb::Result res = k.sync("1+1");
+    kdb::Connector kcon;
+    if (!kcon.connect("127.0.0.1", 5000))
+        return -1;
+    
+    kdb::Result res = kcon.sync("1+1");
     print_kdb(res);
 
-    res = k.sync("1+1`");
+    res = kcon.sync("1+1`"); // Test error catch
     print_kdb(res);
 
-    res = k.sync("a:1");
+    res = kcon.sync("a:1"); // Test assignment
     print_kdb(res);
 
-    kdb::Result res1 = k.sync("a");
+    kdb::Result res1 = kcon.sync("a"); // Test variable fetch
     print_kdb(res1);
 
-    k.async("a:2");
-    res = k.sync("a");
+    kcon.async("a:2"); // Test async request
+    res = kcon.sync("a");
     print_kdb(res);
 
     kdb::Result res2 = res;
     print_kdb(res2);
 
-    k.async("(neg .z.w) 999");
-    res = k.receive(); // Receive 999
+    kcon.async("(neg .z.w) 999"); // Test async request and response
+    res = kcon.receive(); // Receive 999
     print_kdb(res);
 
     print_kdb(res2);
 
-    res = k.receive(); // Wait for non-existing message
+    res = kcon.receive(); // Test waiting for non-existing message
     print_kdb(res);
 
-    k.disconnect();
-    k.async("(neg .z.w) 999");
-    res = k.receive();
+    kcon.disconnect();
+    kcon.async("(neg .z.w) 999");
+    res = kcon.receive();
     print_kdb(res);
 
 
     
-    k.connect("127.0.0.1", 5000);
+    kcon.connect("127.0.0.1", 5000);
     
     // Test atoms
-    res = k.sync("1b");  print_kdb(res);
-    res = k.sync("0x37"); print_kdb(res);
-    res = k.sync("10h"); print_kdb(res);
-    res = k.sync("11i"); print_kdb(res);
-    res = k.sync("12j"); print_kdb(res);
-    res = k.sync("13.1e"); print_kdb(res);
-    res = k.sync("14.2f"); print_kdb(res);
-    res = k.sync("\"a\""); print_kdb(res);
-    res = k.sync("`sym"); print_kdb(res);
-    res = k.sync("2016.01.01D10:00:00.000000000"); print_kdb(res);
-    res = k.sync("2016.01m"); print_kdb(res);
-    res = k.sync("2016.01.01"); print_kdb(res);
+    res = kcon.sync("1b");  print_kdb(res);
+    res = kcon.sync("0x37"); print_kdb(res);
+    res = kcon.sync("10h"); print_kdb(res);
+    res = kcon.sync("11i"); print_kdb(res);
+    res = kcon.sync("12j"); print_kdb(res);
+    res = kcon.sync("13.1e"); print_kdb(res);
+    res = kcon.sync("14.2f"); print_kdb(res);
+    res = kcon.sync("\"a\""); print_kdb(res);
+    res = kcon.sync("`sym"); print_kdb(res);
+    res = kcon.sync("2016.01.01D10:00:00.000000000"); print_kdb(res);
+    res = kcon.sync("2016.01m"); print_kdb(res);
+    res = kcon.sync("2016.01.01"); print_kdb(res);
 
     // Test vectors
-    res = k.sync("10110011b");  print_kdb(res);
-    res = k.sync("0x3738"); print_kdb(res);
-    res = k.sync("10 11h"); print_kdb(res);
-    res = k.sync("11 12i"); print_kdb(res);
-    res = k.sync("12 13j"); print_kdb(res);
-    res = k.sync("13.1 14.1e"); print_kdb(res);
-    res = k.sync("14.2 15.2f"); print_kdb(res);
-    res = k.sync("\"ab\""); print_kdb(res);
-    res = k.sync("`sym1`sym2"); print_kdb(res);
-    res = k.sync("2016.01.01D10:00:00.000000000 2016.01.02D10:00:00.000000000"); print_kdb(res);
-    res = k.sync("2016.01 2016.02m"); print_kdb(res);
-    res = k.sync("2016.01.01 2016.01.02"); print_kdb(res);
-
-    // Test mixed lists
-    res = k.sync("(1b; 0x37; 10h; 11i; 12j; 13.1e; 14.2f; \"a\"; `sym)"); print_kdb(res);
+    res = kcon.sync("10110011b");  print_kdb(res);
+    res = kcon.sync("0x3738"); print_kdb(res);
+    res = kcon.sync("10 11h"); print_kdb(res);
+    res = kcon.sync("11 12i"); print_kdb(res);
+    res = kcon.sync("12 13j"); print_kdb(res);
+    res = kcon.sync("13.1 14.1e"); print_kdb(res);
+    res = kcon.sync("14.2 15.2f"); print_kdb(res);
+    res = kcon.sync("\"ab\""); print_kdb(res);
+    res = kcon.sync("`sym1`sym2"); print_kdb(res);
+    res = kcon.sync("2016.01.01D10:00:00.000000000 2016.01.02D10:00:00.000000000"); print_kdb(res);
+    res = kcon.sync("2016.01 2016.02m"); print_kdb(res);
+    res = kcon.sync("2016.01.01 2016.01.02"); print_kdb(res);
 
     // Test dictionaries
-    res = k.sync("`a`b`c!1 2 3"); print_kdb(res);
+    res = kcon.sync("`a`b`c!1 2 3"); print_kdb(res);
 
     // Test tables
-    res = k.sync("([]a:1 2 3;b:1.1 2.2 3.3f;c:`first`second`third)"); print_kdb(res);
-    //res = k.sync("([k:`a`b`c]a:1 2 3;b:1.1 2.2 3.3f;c:`first`second`third)"); print_kdb(res);
+    res = kcon.sync("([]a:1 2 3;b:1.1 2.2 3.3f;c:`first`second`third)"); print_kdb(res);
+    res = kcon.sync("([k:`a`b`c]a:1 2 3;b:1.1 2.2 3.3f;c:`first`second`third)"); print_kdb(res);
+
+    // Test mixed lists
+    res = kcon.sync("(1b; 0x37; 10h; 11i; 12j; 13.1e; 14.2f; \"a\"; `sym)"); print_kdb(res);
+    res = kcon.sync("(1b; 0x37; 10h; 11i; 12j; 13.1e; 14.2f; \"a\"; `sym; ([]a:1 2 3;b:1.1 2.2 3.3f;c:`first`second`third); ([k:`a`b`c]a:1 2 3;b:1.1 2.2 3.3f;c:`first`second`third))"); print_kdb(res);
 
     return 0;
 }
