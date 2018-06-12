@@ -6,7 +6,7 @@
 
 2. Compile with command 
    ~~~
-   g++ -DKXVER=3 -std=c++11 -lpthread -o kdb_cpp kdb_cpp.cpp c.o
+   g++ -DKXVER=3 -std=c++11 -lpthread -o kdb_cpp kdb_cpp.cpp test.cpp c.o
    ~~~
 
 3. Run the binary

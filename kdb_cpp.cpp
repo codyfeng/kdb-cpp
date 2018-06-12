@@ -1,71 +1,6 @@
 #include <iostream>
-#include <string>
 #include <cstdio>
-#include "k.h"
-
-namespace kdb {
-    class Connector;
-    class Result;
-    std::ostream &operator<<(std::ostream &os, const Result &result);
-
-    enum class Type {
-        MixedList = 0,
-        Boolean = 1,
-        GUID = 2,
-        Byte = 4,
-        Short = 5,
-        Int = 6,
-        Long = 7,
-        Real = 8,
-        Float = 9,
-        Char = 10,
-        Symbol = 11,
-        Timestamp = 12,
-        Month = 13,
-        Date = 14,
-        Datetime = 15,
-        Timespan = 16,
-        Minute = 17,
-        Second = 18,
-        Time = 19,
-        Table = 98,
-        Dict = 99,
-        Error = -128
-    };
-}
-
-
-
-class kdb::Connector {
-public:
-    ~Connector();
-    bool connect(const char* host, int port, const char* usr_pwd = nullptr, int timeout=1000);
-    void disconnect();
-    Result sync(const char* msg);
-    void async(const char* msg);
-    Result receive(int timeout=1000);
-    
-
-private:
-    std::string host_;
-    std::string usr_pwd_;
-    int port_ = 0;
-    int hdl_ = 0;
-};
-
-class kdb::Result {
-public:
-    Result() = delete;
-    Result(K res);
-    Result(const Result &r);
-    ~Result();
-    Type type();
-    Result & operator = (const Result &r);
-    friend std::ostream &operator<<(std::ostream &os, const Result &result);
-
-private:
-    K res_;
-};
+#include "kdb_cpp.h"
 
 
 ////////////////////////////////////////////
@@ -116,6 +51,7 @@ kdb::Result kdb::Connector::sync(const char* msg) {
     if (hdl_ <= 0) {
         fprintf(stderr, "[kdb+] Connection not established.\n");
         // TODO auto connect
+        return Result(nullptr);
     } else {
         fprintf(stdout, "[kdb+][sync] %s\n", msg);
         K res = k(hdl_, const_cast<const S>(msg), (K)0);
@@ -200,6 +136,13 @@ kdb::Result::Result(const kdb::Result &r) {
     }
 }
 
+// Move constructor
+kdb::Result::Result(kdb::Result &&r) noexcept {
+    res_ = r.res_;
+    r.res_ = nullptr;
+}
+
+
 // Assignment operator, e.g., r1 = r2;
 kdb::Result & kdb::Result::operator = (const kdb::Result &r) {
     if (this != &r) {
@@ -214,51 +157,43 @@ kdb::Result & kdb::Result::operator = (const kdb::Result &r) {
     return *this;
 }
 
-kdb::Type kdb::Result::type() {
-    if (res_) {
-        return static_cast<kdb::Type>(res_->t);
-    } else {
-        return kdb::Type::Error;
-    }
-}
-
 std::ostream &operator<<(std::ostream &os, K const &res) {
     if (res) {
         int idx;
         switch (res->t) {
-        case(-1) :
+        case(-1) : // Boolean atom
             if (res->g) {
                 os << "true";
             } else {
                 os << "false";
             }
             break;
-        case(-4) :
+        case(-4) : // Byte atom
             os << res->g; break;
-        case(-5) :
+        case(-5) : // Short atom
             os << res->h; break;
-        case(-6) : case(-13) : case(-17) : case(-18) :
+        case(-6) : case(-13) : case(-17) : case(-18) : // Int Month Minute Second atom
             os << res->i; break;
-        case(-7) : case(-12) : case(-16) :
+        case(-7) : case(-12) : case(-16) : // Long Timestamp Timespan atom
             os << res->j; break;
-        case(-8) :
+        case(-8) : // Real atom
             os << res->e; break;
-        case(-9) : case(-15) :
+        case(-9) : case(-15) : // Float Datetime atom
             os << res->f; break;
-        case(-10) :
+        case(-10) : // Char atom
             os << res->g; break;
-        case(-11) :
+        case(-11) : // Symbol atom
             os << res->s; break;
-        case(-19) :
+        case(-19) : // Time atom
             os << res->i; break;
-        case(-14) :
+        case(-14) : // Date atom
             os << dj(res->i); break;
-        case(0) :
+        case(0) : // Mixed List
             for (idx = 0; idx < res->n; idx++) {
                 os << kK(res)[idx]  << ' ';
             }
             break;
-        case(1) :
+        case(1) : // Boolean vector
             for (idx = 0; idx < res->n; idx++) {
                 if (kG(res)[idx]) {
                     os << "true";
@@ -268,52 +203,52 @@ std::ostream &operator<<(std::ostream &os, K const &res) {
                 os << ' ';
             }
             break;
-        case(4) :
+        case(4) : // Byte vector
             for (idx = 0; idx < res->n; idx++) {
                 os << kG(res)[idx] << ' ';
             }
             break;
-        case(5) :
+        case(5) : // Short vector
             for (idx = 0; idx < res->n; idx++) {
                 os << kH(res)[idx] << ' ';
             }
             break;
-        case(6) : case(13) : case(17) : case(18) :
+        case(6) : case(13) : case(17) : case(18) : // Int Month Minute Second vector
             for (idx = 0; idx < res->n; idx++) {
                 os << kI(res)[idx] << ' ';
             }
             break;
-        case(7) : case(12) : case(16) :
+        case(7) : case(12) : case(16) : // Long Timestamp Timespan vector
             for (idx = 0; idx < res->n; idx++) {
                 os << kJ(res)[idx] << ' ';
             }
             break;
-        case(8) :
+        case(8) : // Real vector
             for (idx = 0; idx < res->n; idx++) {
                 os << kE(res)[idx] << ' ';
             }
             break;
-        case(9) : case(15) :
+        case(9) : case(15) : // Float Datetime vector
             for (idx = 0; idx < res->n; idx++) {
                 os << kF(res)[idx] << ' ';
             }
             break;
-        case(10) :
+        case(10) : // Char vector, i.e., String
             for (idx = 0; idx < res->n; idx++) {
-                os << kC(res)[idx] << ' ';
+                os << kC(res)[idx];
             }
             break;
-        case(11) :
+        case(11) : // Symbol vector
             for (idx = 0; idx < res->n; idx++) {
                 os << kS(res)[idx] << ' ';
             }
             break;
-        case(19) :
+        case(19) : // Time vector
             for (idx = 0; idx < res->n; idx++) {
                 os << kI(res)[idx] << ' ';
             }
             break;
-        case(14) :
+        case(14) : // Date vector
             for (idx = 0; idx < res->n; idx++) {
                 os << dj(kI(res)[idx]) << ' ';
             }
@@ -331,97 +266,5 @@ std::ostream &operator<<(std::ostream &os, K const &res) {
 
 std::ostream &kdb::operator<<(std::ostream &os, kdb::Result const &result) {
     return os << result.res_;
-}
-
-////////////////////////////////////////////
-// Test
-////////////////////////////////////////////
-
-inline void print_kdb(kdb::Result r) {
-    std::cout << "type: " << static_cast<std::underlying_type<kdb::Type>::type>(r.type()) << " value: " << r << '\n';
-}
-
-int main() {
-    kdb::Connector kcon;
-    if (!kcon.connect("127.0.0.1", 5000))
-        return -1;
-    
-    kdb::Result res = kcon.sync("1+1");
-    print_kdb(res);
-
-    res = kcon.sync("1+1`"); // Test error catch
-    print_kdb(res);
-
-    res = kcon.sync("a:1"); // Test assignment
-    print_kdb(res);
-
-    kdb::Result res1 = kcon.sync("a"); // Test variable fetch
-    print_kdb(res1);
-
-    kcon.async("a:2"); // Test async request
-    res = kcon.sync("a");
-    print_kdb(res);
-
-    kdb::Result res2 = res;
-    print_kdb(res2);
-
-    kcon.async("(neg .z.w) 999"); // Test async request and response
-    res = kcon.receive(); // Receive 999
-    print_kdb(res);
-
-    print_kdb(res2);
-
-    res = kcon.receive(); // Test waiting for non-existing message
-    print_kdb(res);
-
-    kcon.disconnect();
-    kcon.async("(neg .z.w) 999");
-    res = kcon.receive();
-    print_kdb(res);
-
-
-    
-    kcon.connect("127.0.0.1", 5000);
-    
-    // Test atoms
-    res = kcon.sync("1b");  print_kdb(res);
-    res = kcon.sync("0x37"); print_kdb(res);
-    res = kcon.sync("10h"); print_kdb(res);
-    res = kcon.sync("11i"); print_kdb(res);
-    res = kcon.sync("12j"); print_kdb(res);
-    res = kcon.sync("13.1e"); print_kdb(res);
-    res = kcon.sync("14.2f"); print_kdb(res);
-    res = kcon.sync("\"a\""); print_kdb(res);
-    res = kcon.sync("`sym"); print_kdb(res);
-    res = kcon.sync("2016.01.01D10:00:00.000000000"); print_kdb(res);
-    res = kcon.sync("2016.01m"); print_kdb(res);
-    res = kcon.sync("2016.01.01"); print_kdb(res);
-
-    // Test vectors
-    res = kcon.sync("10110011b");  print_kdb(res);
-    res = kcon.sync("0x3738"); print_kdb(res);
-    res = kcon.sync("10 11h"); print_kdb(res);
-    res = kcon.sync("11 12i"); print_kdb(res);
-    res = kcon.sync("12 13j"); print_kdb(res);
-    res = kcon.sync("13.1 14.1e"); print_kdb(res);
-    res = kcon.sync("14.2 15.2f"); print_kdb(res);
-    res = kcon.sync("\"ab\""); print_kdb(res);
-    res = kcon.sync("`sym1`sym2"); print_kdb(res);
-    res = kcon.sync("2016.01.01D10:00:00.000000000 2016.01.02D10:00:00.000000000"); print_kdb(res);
-    res = kcon.sync("2016.01 2016.02m"); print_kdb(res);
-    res = kcon.sync("2016.01.01 2016.01.02"); print_kdb(res);
-
-    // Test dictionaries
-    res = kcon.sync("`a`b`c!1 2 3"); print_kdb(res);
-
-    // Test tables
-    res = kcon.sync("([]a:1 2 3;b:1.1 2.2 3.3f;c:`first`second`third)"); print_kdb(res);
-    res = kcon.sync("([k:`a`b`c]a:1 2 3;b:1.1 2.2 3.3f;c:`first`second`third)"); print_kdb(res);
-
-    // Test mixed lists
-    res = kcon.sync("(1b; 0x37; 10h; 11i; 12j; 13.1e; 14.2f; \"a\"; `sym)"); print_kdb(res);
-    res = kcon.sync("(1b; 0x37; 10h; 11i; 12j; 13.1e; 14.2f; \"a\"; `sym; ([]a:1 2 3;b:1.1 2.2 3.3f;c:`first`second`third); ([k:`a`b`c]a:1 2 3;b:1.1 2.2 3.3f;c:`first`second`third))"); print_kdb(res);
-
-    return 0;
 }
 
