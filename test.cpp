@@ -1,4 +1,5 @@
 #include <iostream>
+#include <numeric>
 #include <type_traits>
 #include "kdb_cpp.h"
 
@@ -119,12 +120,66 @@ int main() {
     int i = kcon.sync("100i").get<kdb::Type::Int>();
     std::cout << i << std::endl;
 
+
     double j = kcon.sync("100.0").get<kdb::Type::Float>();
     std::cout << j << std::endl;
 
-    int k = kcon.sync("2016.01.01").get<kdb::Type::Date>();
+    int k = kcon.sync("2016i").get<kdb::Type::Int>();
     std::cout << k << std::endl;
     
+    kdb::Vector<kdb::Type::Float> kv = kcon.sync("1.1 2.2").get_vector<kdb::Type::Float>();
+    
+    for (kdb::Vector<kdb::Type::Float>::iterator it = kv.begin(); it != kv.end(); ++it) {
+        std::cout << *it << '\n';
+    }
+    for (kdb::Vector<kdb::Type::Float>::iterator it = kv.begin(); it != kv.end(); ++it) {
+        std::cout << *it << '\n';
+    }
+    for (kdb::Vector<kdb::Type::Float>::const_iterator it = kv.begin(); it != kv.end(); ++it) {
+        std::cout << *it << '\n';
+    }
+    for (auto it = kv.begin(); it != kv.end(); ++it) {
+        std::cout << *it << '\n';
+    }
+    for (auto it = kv.rbegin(); it != kv.rend(); ++it) {
+        std::cout << *it << '\n';
+    }
+    for (auto &it : kv) {
+        std::cout << it << '\n';
+    }
+    for (auto const &it : kv) {
+        std::cout << it << '\n';
+    }
+
+    kdb::Vector<kdb::Type::Long> kvl = kcon.sync("101 202j").get_vector<kdb::Type::Long>();
+    
+    for (kdb::Vector<kdb::Type::Long>::iterator it = kvl.begin(); it != kvl.end(); ++it) {
+        std::cout << *it << '\n';
+    }
+    for (kdb::Vector<kdb::Type::Long>::iterator it = kvl.begin(); it != kvl.end(); ++it) {
+        std::cout << *it << '\n';
+    }
+    for (kdb::Vector<kdb::Type::Long>::const_iterator it = kvl.begin(); it != kvl.end(); ++it) {
+        std::cout << *it << '\n';
+    }
+    for (auto it = kvl.begin(); it != kvl.end(); ++it) {
+        std::cout << *it << '\n';
+    }
+    for (auto it = kvl.rbegin(); it != kvl.rend(); ++it) {
+        std::cout << *it << '\n';
+    }
+    for (auto &it : kvl) {
+        std::cout << it << '\n';
+    }
+    for (auto const &it : kvl) {
+        std::cout << it << '\n';
+    }
+
+
+
+
+    double sum = std::accumulate(kv.begin(), kv.end(), 0.0);
+    std::cout << "sum = " << sum << '\n';
     
     return 0;
 }
