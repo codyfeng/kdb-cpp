@@ -191,11 +191,17 @@ public:
             res_ = nullptr; // Avoid double free
         }
     }
+    inline long long size() const { return size_; }
 
+    typedef typename kdb::c_type<T>::type & reference;
+    typedef typename kdb::c_type<T>::type const & const_reference;
     typedef typename kdb::c_type<T>::type * iterator;
-    typedef const typename kdb::c_type<T>::type * const_iterator;
+    typedef typename kdb::c_type<T>::type const * const_iterator;
     typedef std::reverse_iterator<iterator> reverse_iterator;
     typedef std::reverse_iterator<const_iterator> const_reverse_iterator;
+
+    reference operator[](const long long i) { return reinterpret_cast<iterator>(res_->G0)[i]; }
+    const_reference operator[](const long long i) const { return reinterpret_cast<iterator>(res_->G0)[i]; }
 
     iterator begin() { return reinterpret_cast<iterator>(res_->G0); }
     iterator end() { return reinterpret_cast<iterator>(res_->G0) + size_; }

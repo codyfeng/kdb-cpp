@@ -3,6 +3,8 @@
 #include <type_traits>
 #include "kdb_cpp.h"
 
+#define HOST_ADDR "127.0.0.1"
+#define HOST_PORT 5000
 
 ////////////////////////////////////////////
 // Test
@@ -32,9 +34,54 @@ inline void test_cout(kdb::Result const &r) {
     std::cout << "type: " << static_cast<std::underlying_type<kdb::Type>::type>(r.type()) << " value: " << r << '\n';
 }
 
+template <kdb::Type T>
+void test_vector_accessor(kdb::Connector &kcon, const char *msg) {
+    // Test vector accessors
+    kdb::Result res = kcon.sync(msg);
+    if (res.struct_type() != kdb::StructType::Vector) {
+        std::cout << "Error - result is not a vector.\n";
+        return;
+    } else if (res.type() != T) {
+        std::cout << "Error - expected type " << static_cast<std::underlying_type<kdb::Type>::type>(T)
+        << " but got type " << static_cast<std::underlying_type<kdb::Type>::type>(res.type()) << '\n';
+        return;
+    }
+    typename kdb::Vector<T> kv = res.get_vector<T>();
+    
+    std::cout << "Access by [] operator: ";
+    for (long long i = 0; i < kv.size(); ++i) {
+        std::cout << kv[i] << ' ';
+    }
+    std::cout << "\nIterator: ";
+    for (typename kdb::Vector<T>::iterator it = kv.begin(); it != kv.end(); ++it) {
+        std::cout << *it << ' ';
+    }
+    std::cout << "\nConst Iterator: ";
+    for (typename kdb::Vector<T>::const_iterator it = kv.cbegin(); it != kv.cend(); ++it) {
+        std::cout << *it << ' ';
+    }
+    std::cout << "\nReverse Iterator: ";
+    for (typename kdb::Vector<T>::reverse_iterator it = kv.rbegin(); it != kv.rend(); ++it) {
+        std::cout << *it << ' ';
+    }
+    std::cout << "\nReverse Const Iterator: ";
+    for (typename kdb::Vector<T>::const_reverse_iterator it = kv.crbegin(); it != kv.crend(); ++it) {
+        std::cout << *it << ' ';
+    }
+    std::cout << "\nRange-based for loop: ";
+    for (typename kdb::c_type<T>::type &it : kv) {
+        std::cout << it << ' ';
+    }
+    std::cout << "\nRange-based const for loop: ";
+    for (typename kdb::c_type<T>::type const &it : kv) {
+        std::cout << it << ' ';
+    }
+    std::cout << '\n';
+}
+
 int main() {
     kdb::Connector kcon;
-    if (!kcon.connect("127.0.0.1", 5000))
+    if (!kcon.connect(HOST_ADDR, HOST_PORT))
         return -1;
 
     kdb::Result res = kcon.sync("1+1");
@@ -53,30 +100,26 @@ int main() {
     res = kcon.sync("a");
     test_cout(res);
 
-    kdb::Result res2 = res;
+    kdb::Result res2 = res; // Test copy constructor
     test_cout(res2);
 
-    kdb::Result res3 = std::move(kcon.sync("12j"));
+    kdb::Result res3 = std::move(kcon.sync("12j")); // Test move constructor
     test_cout(res3);
-
 
     kcon.async("(neg .z.w) 999"); // Test async request and response
     res = kcon.receive(); // Receive 999
     test_cout(res);
-
-    test_cout(res2);
+    test_cout(res2);  // res2 should be different from res
 
     res = kcon.receive(); // Test waiting for non-existing message
     test_cout(res);
 
     kcon.disconnect();
-    kcon.async("(neg .z.w) 999");
+    kcon.async("(neg .z.w) 999"); // Test async request when disconnected.
     res = kcon.receive();
     test_cout(res);
-
-
-    
-    kcon.connect("127.0.0.1", 5000);
+  
+    kcon.connect(HOST_ADDR, HOST_PORT);
     
     // Test atoms
     test_cout(kcon.sync("1b"));
@@ -117,69 +160,69 @@ int main() {
     test_cout(kcon.sync("(1b; 0x37; 10h; 11i; 12j; 13.1e; 14.2f; \"a\"; `sym)"));
     test_cout(kcon.sync("(1b; 0x37; 10h; 11i; 12j; 13.1e; 14.2f; \"a\"; `sym; ([]a:1 2 3;b:1.1 2.2 3.3f;c:`first`second`third); ([k:`a`b`c]a:1 2 3;b:1.1 2.2 3.3f;c:`first`second`third))"));
 
+    ///////////////////////////////////////
+    // Test atom accessors
+    ///////////////////////////////////////
     int i = kcon.sync("100i").get<kdb::Type::Int>();
-    std::cout << i << std::endl;
-
+    std::cout << i << '\n';
 
     double j = kcon.sync("100.0").get<kdb::Type::Float>();
-    std::cout << j << std::endl;
+    std::cout << j << '\n';
 
     int k = kcon.sync("2016i").get<kdb::Type::Int>();
-    std::cout << k << std::endl;
+    std::cout << k << '\n';
     
-    kdb::Vector<kdb::Type::Float> kv = kcon.sync("1.1 2.2").get_vector<kdb::Type::Float>();
-    
+
+    ///////////////////////////////////////
+    // Test vector accessors
+    ///////////////////////////////////////
+    kdb::Vector<kdb::Type::Float> kv = kcon.sync("1.1 2.2 3.3 4.4 5.5").get_vector<kdb::Type::Float>();
+
+    std::cout << "Access by [] operator: ";
+    for (long long i = 0; i < kv.size(); ++i) {
+        std::cout << kv[i] << ' ';
+    }
+    std::cout << "\nIterator: ";
     for (kdb::Vector<kdb::Type::Float>::iterator it = kv.begin(); it != kv.end(); ++it) {
-        std::cout << *it << '\n';
+        std::cout << *it << ' ';
     }
-    for (kdb::Vector<kdb::Type::Float>::iterator it = kv.begin(); it != kv.end(); ++it) {
-        std::cout << *it << '\n';
+    std::cout << "\nConst Iterator: ";
+    for (kdb::Vector<kdb::Type::Float>::const_iterator it = kv.cbegin(); it != kv.cend(); ++it) {
+        std::cout << *it << ' ';
     }
-    for (kdb::Vector<kdb::Type::Float>::const_iterator it = kv.begin(); it != kv.end(); ++it) {
-        std::cout << *it << '\n';
+    std::cout << "\nReverse Iterator: ";
+    for (kdb::Vector<kdb::Type::Float>::reverse_iterator it = kv.rbegin(); it != kv.rend(); ++it) {
+        std::cout << *it << ' ';
     }
-    for (auto it = kv.begin(); it != kv.end(); ++it) {
-        std::cout << *it << '\n';
+    std::cout << "\nReverse Const Iterator: ";
+    for (kdb::Vector<kdb::Type::Float>::const_reverse_iterator it = kv.crbegin(); it != kv.crend(); ++it) {
+        std::cout << *it << ' ';
     }
-    for (auto it = kv.rbegin(); it != kv.rend(); ++it) {
-        std::cout << *it << '\n';
+    std::cout << "\nRange-based for loop: ";
+    for (double it : kv) {
+        std::cout << it << ' ';
     }
-    for (auto &it : kv) {
-        std::cout << it << '\n';
+    std::cout << "\nRange-based const for loop: ";
+    for (double const it : kv) {
+        std::cout << it << ' ';
     }
-    for (auto const &it : kv) {
-        std::cout << it << '\n';
-    }
+    std::cout << '\n';
+    std::cout << "sum = " << std::accumulate(kv.begin(), kv.end(), 0.0) << '\n';
 
-    kdb::Vector<kdb::Type::Long> kvl = kcon.sync("101 202j").get_vector<kdb::Type::Long>();
+    test_vector_accessor<kdb::Type::Boolean>(kcon, "10110011b");
+    test_vector_accessor<kdb::Type::Byte>(kcon, "0x373839404142");
+    test_vector_accessor<kdb::Type::Short>(kcon, "10 11 12 13 14h");
+    test_vector_accessor<kdb::Type::Int>(kcon, "11 12 13 14 15i");
+    test_vector_accessor<kdb::Type::Long>(kcon, "101 102 103 104 105");
+    test_vector_accessor<kdb::Type::Real>(kcon, "13.1 14.1 15.1 16.1 17.1");
+    test_vector_accessor<kdb::Type::Float>(kcon, "14.2 15.2 16.3 17.4 18.5");
+    test_vector_accessor<kdb::Type::Char>(kcon, "\"abcdefg\"");
+    test_vector_accessor<kdb::Type::Symbol>(kcon, "`sym1`sym2`something`to`test");
+    test_vector_accessor<kdb::Type::Timestamp>(kcon, "2016.01.01D10:00:00.000000000 2016.01.02D10:00:00.000000000");
+    test_vector_accessor<kdb::Type::Month>(kcon, "2016.01 2016.02 2018.03 2020.12 2035.11 2040.07m");
+    test_vector_accessor<kdb::Type::Date>(kcon, "2016.01.01 2016.01.02 2018.03.25 2019.04.11 2020.10.20");
+
     
-    for (kdb::Vector<kdb::Type::Long>::iterator it = kvl.begin(); it != kvl.end(); ++it) {
-        std::cout << *it << '\n';
-    }
-    for (kdb::Vector<kdb::Type::Long>::iterator it = kvl.begin(); it != kvl.end(); ++it) {
-        std::cout << *it << '\n';
-    }
-    for (kdb::Vector<kdb::Type::Long>::const_iterator it = kvl.begin(); it != kvl.end(); ++it) {
-        std::cout << *it << '\n';
-    }
-    for (auto it = kvl.begin(); it != kvl.end(); ++it) {
-        std::cout << *it << '\n';
-    }
-    for (auto it = kvl.rbegin(); it != kvl.rend(); ++it) {
-        std::cout << *it << '\n';
-    }
-    for (auto &it : kvl) {
-        std::cout << it << '\n';
-    }
-    for (auto const &it : kvl) {
-        std::cout << it << '\n';
-    }
-
-
-
-
-    double sum = std::accumulate(kv.begin(), kv.end(), 0.0);
-    std::cout << "sum = " << sum << '\n';
     
     return 0;
 }
