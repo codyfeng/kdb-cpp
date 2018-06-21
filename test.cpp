@@ -153,8 +153,8 @@ int main() {
     test_cout(kcon.sync("`a`b`c!1 2 3"));
 
     // Test tables
-    test_cout(kcon.sync("([]a:1 2 3;b:1.1 2.2 3.3f;c:`first`second`third)"));
-    test_cout(kcon.sync("([k:`a`b`c]a:1 2 3;b:1.1 2.2 3.3f;c:`first`second`third)"));
+    test_cout(kcon.sync("([]a:1 2 3 4;b:1.1 2.2 3.3 4.4f;c:`first`second`third`fourth)")); // regular
+    test_cout(kcon.sync("([k:`a`b`c]a:1 2 3;b:1.1 2.2 3.3f;c:`first`second`third)")); // keyed
 
     // Test mixed lists
     test_cout(kcon.sync("(1b; 0x37; 10h; 11i; 12j; 13.1e; 14.2f; \"a\"; `sym)"));
@@ -171,6 +171,9 @@ int main() {
 
     int k = kcon.sync("2016i").get<kdb::Type::Int>();
     std::cout << k << '\n';
+
+    char* l = kcon.sync("`abcdefghijk").get<kdb::Type::Symbol>();
+    std::cout << l << '\n';
     
 
     ///////////////////////////////////////
@@ -222,7 +225,48 @@ int main() {
     test_vector_accessor<kdb::Type::Month>(kcon, "2016.01 2016.02 2018.03 2020.12 2035.11 2040.07m");
     test_vector_accessor<kdb::Type::Date>(kcon, "2016.01.01 2016.01.02 2018.03.25 2019.04.11 2020.10.20");
 
+    ///////////////////////////////////////
+    // Test table accessor
+    ///////////////////////////////////////
+    kdb::Table tbl = kcon.sync("([]col1:1 2 3 4;col2:1.1 2.2 3.3 4.4f;col3:`first`second`third`fourth)").get_table();
+    kdb::Vector<kdb::Type::Symbol> header = tbl.get_header();
+    for (auto const &it : header) {
+        std::cout << it << ' ';
+    }
+    std::cout << '\n';
+
+    // Traverse a column
+    kdb::Vector<kdb::Type::Long> col1 = tbl.get_column<kdb::Type::Long>(0);
+    for (auto const &it : col1) {
+        std::cout << it << ' ';
+    }
+    std::cout << '\n';
     
+    kdb::Vector<kdb::Type::Float> col2 = tbl.get_column<kdb::Type::Float>(1);
+    for (auto const &it : col2) {
+        std::cout << it << ' ';
+    }
+    std::cout << '\n';
+
+    // Get a specific cell
+    long long cell1 = tbl.get<kdb::Type::Long>(2, 0);
+    std::cout << cell1 << ' ';
+
+    double cell2 = tbl.get<kdb::Type::Float>(2, 1);
+    std::cout << cell2 << ' ';
+
+    char * cell3 = tbl.get<kdb::Type::Symbol>(2, 2);
+    std::cout << cell3 << '\n';
+
+    long long cell4 = tbl.get<long long>(2, 0);
+    std::cout << cell4 << ' ';
+
+    double cell5 = tbl.get<double>(2, 1);
+    std::cout << cell5 << ' ';
+
+    char * cell6 = tbl.get<char *>(2, 2);
+    std::cout << cell6 << '\n';
     
+
     return 0;
 }

@@ -6,6 +6,7 @@ namespace kdb {
     enum class StructType;
     class Connector;
     class Result;
+    class Table;
     template<Type> class Vector;
 
     /**
@@ -22,6 +23,10 @@ namespace kdb {
     
 }
 
+/**
+ * @brief   Data types
+ * @see     https://code.kx.com/q/ref/card/#datatypes
+ */
 enum class kdb::Type {
     List = 0,
 
@@ -51,7 +56,7 @@ enum class kdb::Type {
 };
 
 /**
- * @brief   data strucuture type
+ * @brief   Data structure types
  * @see     https://code.kx.com/q/ref/elements/#nouns
  */
 enum class kdb::StructType {
@@ -110,10 +115,31 @@ private:
     int hdl_ = 0;
 };
 
+class kdb::Table {
+public:
+    Table(const Result &r);
+    ~Table();
+    Vector<Type::Symbol> get_header();
+    
+    template<Type T>
+    kdb::Vector<T> get_column(long long col) const;
+
+    template<Type T, typename U = typename c_type<T>::type>
+    U get(long long row, long long col) const;
+
+    template<typename T>
+    T get(long long row, long long col) const;
+
+private:
+    K res_;
+    long long n_rows_; // number of rows
+    long long n_cols_; // number of columns
+};
+
 class kdb::Result {
 public:
     Result() = delete;
-    Result(K res);
+    Result(K res, bool inc_ref_count = true);
     Result(const Result &r);
     Result(Result &&r) noexcept;
     ~Result();
@@ -161,21 +187,29 @@ public:
         }
     }
 
+    friend class kdb::Table;
+
     template<Type>
     friend class kdb::Vector;
 
+    template<typename T>
+    T get() const;
+
     template<Type T, typename U = typename c_type<T>::type>
-    inline U get() const;
+    U get() const;
+
+    inline kdb::Table get_table() const {
+        return kdb::Table(*this);
+    }
 
     template<Type T>
-    inline kdb::Vector<T> get_vector() const {
+    kdb::Vector<T> get_vector() const {
         return kdb::Vector<T>(*this);
     }
 
 private:
     K res_;
 };
-
 
 template<kdb::Type T>
 class kdb::Vector {
@@ -253,23 +287,32 @@ namespace kdb {
     template<> struct c_type<Type::Second> {typedef int type; };
     template<> struct c_type<Type::Time> {typedef int type; };
 
-    template<> inline bool Result::get<Type::Boolean>() const { return res_->g; }
-    // template<> inline U Result::get<Type::GUID>() const { return res_->g; }
-    template<> inline char Result::get<Type::Byte>() const { return res_->g; }
-    template<> inline short Result::get<Type::Short>() const { return res_->h; }
-    template<> inline int Result::get<Type::Int>() const { return res_->i; }
-    template<> inline long long Result::get<Type::Long>() const { return res_->j; }
-    template<> inline float Result::get<Type::Real>() const { return res_->e; }
-    template<> inline double Result::get<Type::Float>() const { return res_->f; }
-    template<> inline char Result::get<Type::Char>() const { return res_->g; }
-    template<> inline char* Result::get<Type::Symbol>() const { return res_->s; }
-    template<> inline long long Result::get<Type::Timestamp>() const { return res_->j; }
-    template<> inline int Result::get<Type::Month>() const { return res_->i; }
-    template<> inline int Result::get<Type::Date>() const { return res_->i; }
-    template<> inline double Result::get<Type::Datetime>() const { return res_->f; }
-    template<> inline long long Result::get<Type::Timespan>() const { return res_->j; }
-    template<> inline int Result::get<Type::Minute>() const { return res_->i; }
-    template<> inline int Result::get<Type::Second>() const { return res_->i; }
-    template<> inline int Result::get<Type::Time>() const { return res_->i; }
+    template<typename T>
+    T Result::get() const {
+        return *reinterpret_cast<T *>(&res_->g);
+    }
+
+    template<Type T, typename U>
+    U Result::get() const {
+        return get<U>();
+    }
+
+    template<Type T>
+    Vector<T> Table::get_column(long long col) const {
+        return Result(kK(kK(res_->k)[1])[col]).get_vector<T>();
+    }
+
+    template<typename T>
+    T Table::get(long long row, long long col) const {
+        return (reinterpret_cast<T *>(kK(kK(res_->k)[1])[col]->G0))[row];
+    }
+
+    template<Type T, typename U>
+    U Table::get(long long row, long long col) const {
+        return get<U>(row, col);
+    }
 }
+
+
+
 

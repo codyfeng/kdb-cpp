@@ -62,7 +62,7 @@ kdb::Result kdb::Connector::sync(const char* msg) {
             r0(res);   // Free memory if error as there is nothing useful in it
             res = nullptr;
         }
-        return Result(res);
+        return Result(res, false);
     }
 }
 
@@ -111,14 +111,17 @@ kdb::Result kdb::Connector::receive(int timeout) {
         }
     }
 
-    return Result(result);
+    return Result(result, false);
 }
 
 ////////////////////////////////////////////
 // Definition of kdb+ Result
 ////////////////////////////////////////////
-kdb::Result::Result(K res) {
+kdb::Result::Result(K res, bool inc_ref_count) {
     res_ = res;
+    if (inc_ref_count && res_) {
+        r1(res_);
+    }
 }
 
 kdb::Result::~Result() {
@@ -132,7 +135,7 @@ kdb::Result::~Result() {
 kdb::Result::Result(const kdb::Result &r) {
     res_ = r.res_;
     if (res_) {
-        r1(res_);  // Increase reference count
+        r1(res_);  // Increment reference count
     }
 }
 
@@ -266,5 +269,25 @@ std::ostream &operator<<(std::ostream &os, K const &res) {
 
 std::ostream &kdb::operator<<(std::ostream &os, kdb::Result const &result) {
     return os << result.res_;
+}
+
+
+kdb::Table::Table(const Result &r) : res_(r.res_),
+                             n_cols_(kK(res_->k)[0]->n),
+                             n_rows_(kK(kK(res_->k)[1])[0]->n) {
+    if (res_) {
+        r1(res_);
+    }
+}
+
+kdb::Table::~Table() {
+    if (res_) {
+        r0(res_);
+        res_ = nullptr;
+    }
+}
+
+kdb::Vector<kdb::Type::Symbol> kdb::Table::get_header() {
+    return kdb::Result(kK(res_->k)[0]).get_vector<kdb::Type::Symbol>();
 }
 
