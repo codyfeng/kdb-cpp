@@ -287,7 +287,4 @@ kdb::Table::~Table() {
     }
 }
 
-kdb::Vector<kdb::Type::Symbol> kdb::Table::get_header() {
-    return kdb::Result(kK(res_->k)[0]).get_vector<kdb::Type::Symbol>();
-}
 

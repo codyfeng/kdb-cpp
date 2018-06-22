@@ -1,3 +1,6 @@
+#ifndef __KDB_CPP_H__
+#define __KDB_CPP_H__
+
 #include <string>
 #include "k.h"
 
@@ -19,8 +22,6 @@ namespace kdb {
     template<Type T> struct c_type;
 
     std::ostream &operator<<(std::ostream &os, const Result &result);
-
-    
 }
 
 /**
@@ -119,14 +120,43 @@ class kdb::Table {
 public:
     Table(const Result &r);
     ~Table();
+
+    /**
+     * @brief Get the table header as a vector of symbols
+     * 
+     * @return Vector<Type::Symbol> 
+     */
     Vector<Type::Symbol> get_header();
     
+    /**
+     * @brief Get the column object as a vector
+     * 
+     * @tparam T    kdb::Type
+     * @param col   column index
+     * @return kdb::Vector<T> 
+     */
     template<Type T>
     kdb::Vector<T> get_column(long long col) const;
 
+    /**
+     * @brief       Get value of a cell
+     * 
+     * @tparam T    kdb::Type
+     * @param row   row index [0, ...)
+     * @param col   column index [0, ...)
+     * @return U    corresponding C type of kdb::Type
+     */
     template<Type T, typename U = typename c_type<T>::type>
     U get(long long row, long long col) const;
 
+    /**
+     * @brief       Get value of a cell
+     * 
+     * @tparam T    int, long long, double, ...
+     * @param row   row index [0, ...)
+     * @param col   column index [0, ...)
+     * @return T
+     */
     template<typename T>
     T get(long long row, long long col) const;
 
@@ -147,9 +177,9 @@ public:
     friend std::ostream &operator<<(std::ostream &os, const Result &result);
 
     /**
-     * @brief Get type of the Result, see enum class Type for all types
+     * @brief   Get type of the result, see enum class Type for all types.
      * 
-     * @return Type 
+     * @return  kdb::Type 
      */
     inline Type type() const {
         if (res_) {
@@ -159,6 +189,11 @@ public:
         }
     }
 
+    /**
+     * @brief   Get structure type of the result, see enum class StructType for all types.
+     * 
+     * @return  kdb::StructType 
+     */
     inline StructType struct_type() const {
         if (res_) {
             if (res_->t < 0) {
@@ -177,6 +212,11 @@ public:
         return StructType::Unknown;
     }
 
+    /**
+     * @brief   Get size of the result
+     * 
+     * @return  long long 
+     */
     inline long long size() const {
         if (res_->t >= 0 && res_->t < 20) {
             // vector and mixed list
@@ -198,10 +238,23 @@ public:
     template<Type T, typename U = typename c_type<T>::type>
     U get() const;
 
+    /**
+     * @brief   Get the table object. Undefined behavior if the result is not a table.
+     *          Use struct_type() to check if the result is a table.
+     * 
+     * @return  kdb::Table 
+     */
     inline kdb::Table get_table() const {
         return kdb::Table(*this);
     }
 
+    /**
+     * @brief   Get the vector object. Undefined behavior if the result is not a vector.
+     *          Use struct_type() to check if the result is a vector.
+     * 
+     * @tparam T    kdb::Type
+     * @return kdb::Vector<T> 
+     */
     template<Type T>
     kdb::Vector<T> get_vector() const {
         return kdb::Vector<T>(*this);
@@ -311,8 +364,13 @@ namespace kdb {
     U Table::get(long long row, long long col) const {
         return get<U>(row, col);
     }
+
+    inline kdb::Vector<kdb::Type::Symbol> kdb::Table::get_header() {
+        return kdb::Result(kK(res_->k)[0]).get_vector<kdb::Type::Symbol>();
+    }
 }
 
 
 
 
+#endif
