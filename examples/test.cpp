@@ -1,7 +1,8 @@
 #include <iostream>
 #include <numeric>
 #include <type_traits>
-#include "kdb_cpp.h"
+#include <memory>
+#include "../include/kdb_cpp.h"
 
 #define HOST_ADDR "127.0.0.1"
 #define HOST_PORT 5000
@@ -266,7 +267,6 @@ int main() {
 
     char * cell6 = tbl.get<char *>(2, 2);
     std::cout << cell6 << '\n';
-    
-
+        
     return 0;
 }
